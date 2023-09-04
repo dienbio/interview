@@ -2,19 +2,18 @@
 # ref: https://www.cloudways.com/blog/install-magento-2-composer/
 if ! command -v composer &>/dev/null; then
   curl -sS https://getcomposer.org/installer -o composer-setup.php
-  sudo php composer-setup.php --install-dir=/usr/local/bin --filename=composer --version=1.10.16
+  sudo php composer-setup.php --install-dir=/usr/local/bin --filename=composer
 else
-  echo "Composer installed"
+  echo "Composer installed"our desired version
+
+# Verify that Composer is installed
+if ! [ -x "$(command -v composer)" ]; then
 fi
 
 # Define your Magento 2 project directory and desired Magento version
 sudo chmod -R 777 /var/www/html/
-sudo apt install -y php8.1-bcmath
 MAGENTO_DIR="/var/www/html/my-magento-project"
-MAGENTO_VERSION="2.4.6"  # Replace with your desired version
-
-# Verify that Composer is installed
-if ! [ -x "$(command -v composer)" ]; then
+MAGENTO_VERSION="2.4.6"  # Replace with y
   echo "Composer is not installed. Please install Composer first."
   exit 1
 fi
@@ -26,10 +25,16 @@ composer create-project --repository-url=https://repo.magento.com/ magento/proje
 
 # Navigate to the Magento project directory
 cd $MAGENTO_DIR
+# Set file permissions
+sudo chmod -R 755 .
+sudo find var generated vendor pub/static pub/media app/etc -type f -exec chmod g+w {} \;
+sudo find var generated vendor pub/static pub/media app/etc -type d -exec chmod g+ws {} \;
+sudo chown -R test-ssh:clp .
+sudo chmod u+x bin/magento
 
 # Install Magento using the setup wizard
-php bin/magento setup:install \
-  --base-url=http://localhost/ \
+bin/magento setup:install \
+  --base-url=http://test.mgt.com \
   --db-host=localhost \
   --db-name=magento2 \
   --db-user=root \
@@ -42,18 +47,17 @@ php bin/magento setup:install \
   --language=en_US \
   --currency=USD \
   --timezone=Asia/Vientiane \
-  --use-rewrites=1
+  --use-rewrites=1 \
+  --search-engine=elasticsearch7 \
+  --elasticsearch-host=localhost \
+  --elasticsearch-port=9200
 
-# Set file permissions
-sudo chmod -R 755 .
-sudo find var generated vendor pub/static pub/media app/etc -type f -exec chmod g+w {} \;
-sudo find var generated vendor pub/static pub/media app/etc -type d -exec chmod g+ws {} \;
-sudo chown -R test-ssh:clp .
-sudo chmod u+x bin/magento
+bin/magento setup:install --base-url=http://test.mgt.com \
+        --base-url-secure=https://test.mgt.com
 
 # Deploy static content
 # sudo php bin/magento setup:static-content:deploy -f
-php bin/magneto sampledata:deploy
+php bin/magento sampledata:deploy
 php bin/magento module:enable --all
 php bin/magento setup:upgrade
 
@@ -66,5 +70,14 @@ sudo php bin/magento cache:flush
 # Setup domain
 sudo echo "127.0.0.1 test.mgt.com" >> /etc/hosts
 
+# Config Redis : running under test-ssh user
+sudo su
+su test-ssh
+cd /var/www/html/my-magento-project
+bin/magento setup:config:set --page-cache=redis --page-cache-redis-server=127.0.0.1 --page-cache-redis-db=1
+
+
+
+#Complete
 echo "Magento 2 installation is complete."
 

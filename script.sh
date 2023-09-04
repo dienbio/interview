@@ -12,8 +12,12 @@ sudo apt upgrade -y
 sudo apt install -y nginx
 
 # Install MySQL 8
+wget https://dev.mysql.com/get/mysql-apt-config_0.8.22-1_all.deb
+sudo apt install ./mysql-apt-config_0.8.22-1_all.deb
+sudo apt update
 sudo apt install -y mysql-server
-# password test@123
+# password test@123sudo apt install -y mysql-server
+
 
 
 # Secure MySQL installation (set a root password and remove anonymous users)
@@ -21,7 +25,10 @@ sudo mysql_secure_installation
 
 # Install PHP 8.1 and necessary extensions
 sudo curl -sSL https://packages.sury.org/php/README.txt | sudo bash -x  ;  sudo apt update
-sudo apt install -y php8.1-fpm php8.1-common php8.1-mysql php8.1-gmp php8.1-curl php8.1-intl php8.1-mbstring php8.1-xmlrpc php8.1-gd php8.1-xml php8.1-cli php8.1-zip php8.1-soap php8.1-imap
+sudo apt install -y php-zip php-xml php-mbstring php-bcmath php-fpm php-common php-mysql php-gmp php-curl php-intl php-mbstring php-xmlrpc php-gd php-xml php-cli php-zip php-soap php-imap
+
+# Install phpmyadmin
+sudo apt install -y phpmyadmin
 
 # Self-signed certificate:
 sudo mkdir /etc/nginx/ssl
@@ -30,8 +37,8 @@ sudo openssl req -x509 -nodes -days 365 -newkey rsa:2048 -keyout /etc/nginx/ssl/
 
 
 # Configure PHP-FPM for Nginx
-sudo systemctl enable php8.1-fpm
-sudo systemctl start php8.1-fpm
+sudo systemctl enable php8.2-fpm
+sudo systemctl start php8.2-fpm
 
 # Configure Nginx to use PHP-FPM
 sudo cp /etc/nginx/sites-available/default /etc/nginx/sites-available/default.backup
@@ -62,7 +69,7 @@ server {
 
     location ~ \.php$ {
         include snippets/fastcgi-php.conf;
-        fastcgi_pass unix:/run/php/php8.1-fpm.sock;
+        fastcgi_pass unix:/var/run/phpmyadmin-pool.sock;
     }
 
     location ~ /\.ht {
@@ -70,13 +77,29 @@ server {
     }
 }
 EOF
+# Create php pool /var/run/phpmyadmin-pool.sock then update nginx config
+# Magento Nginx Config
+sudo tee /etc/nginx/sites-available/magento <<EOF
+upstream fastcgi_backend {
+server   unix:/var/run/phpmyadmin/phpmyadmin.sock;
+}
+
+server {
+
+listen 80;
+server_name test.mgt.com;
+set $MAGE_ROOT /var/www/html/my-magento-project;
+include /var/www/html/my-magento-project/nginx.conf.sample;
+}
+EOF
+sudo ln -s /etc/nginx/sites-available/magento /etc/nginx/sites-enabled
 
 # Test Nginx configuration
 sudo nginx -t
 
 # Reload Nginx to apply changes
 sudo systemctl reload nginx
-
+sudo systemctl restart nginx
 # Create a test PHP file to verify installation
 echo "<?php phpinfo(); ?>" | sudo tee /var/www/html/info.php
 
@@ -101,3 +124,9 @@ sudo service elasticsearch start
 
 # Enable Elasticsearch to start on boot
 sudo systemctl enable elasticsearch
+
+
+# Install Redis
+sudo apt install -y redis-server
+sudo systemctl start redis-server
+sudo systemctl enable redis-server
